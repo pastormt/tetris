@@ -1,0 +1,1758 @@
+Public hit As Boolean
+Public score As Long
+Public speed As Double
+Public max_speed As Double
+Public min_speed As Double
+Public rotating As Boolean
+Public allow_rotate As Boolean
+Public allow_offset As Boolean
+Public hit_shape As Boolean
+Public te As Boolean
+Public b_full As Boolean
+'check if game board is full, leading to a game over
+
+Public scoring_time_total As Integer
+Public scoring_time_count As Integer
+'2 vars used to calculate average speed since
+'either beginning of game (if first shape)
+'or since last shape hit (ie last time hit_test evaluated
+'to true)
+
+Public using_arr
+Public other_arr
+Public counts(1) As Integer
+Public vals(1) As Integer
+Public in_vals As Boolean
+Public key_to_move As Integer
+Public arr_tracker As Integer
+
+Public gwidth As Integer
+Public shape_counter As Integer
+Public top_row As Integer
+
+Public xztaken() As Integer
+Public yztaken() As Integer
+'this length equals table width
+'array of taken cells
+
+'Public pro_y(2) As Integer
+'Public pro_x(2) As Integer
+Public pro_y(3) As Integer
+Public pro_x(3) As Integer
+
+Public bottom_line  As Integer
+Public timer_counter As Integer
+Public draw_cell As Integer
+
+Public rnd_num As Integer
+Public shape(6) As String
+'array of possible shapes
+
+Public shapes_row As Integer
+
+Public row1(6)
+Public row2(6)
+'store cells to be filled in for these shapes
+'to draw them from step 1
+Public xtaken() As Integer
+Public ytaken() As Integer
+
+Public arr_counter As Integer
+Public existing_arr_len As Integer
+Public row_dist As Integer
+
+Public start_col As Integer
+
+Public start1 As Integer
+Public end1 As Integer
+Public len1 As Integer
+Public start2 As Integer
+Public end2 As Integer
+Public len2 As Integer
+Public shape_width As Integer
+Public hl_start As Integer
+Public hl_end As Integer
+Public shape_height As Integer
+Public shape_hp As Integer
+Public shape_lp As Integer
+
+
+'checking that current shape stays within horizontal
+'width boundary
+Public xpos As Integer
+'left most x coord of cell occupied by current shape
+Public n_xpos As Integer
+'xpos + r_offset
+'xpos + rotation effects
+
+Public r_offset As Long
+Public t_r_offset As Integer
+'tracks right offset addition for this time interval
+'to the current shape
+'as well as all previous right offsets to the current shape
+
+Public row_tracker
+'tracks downward progress of shape
+
+Public pos
+'tracks 1-4 orientation of T shape
+
+'vars for adjust rotation if causes collision
+Public pro_arr_loc As Integer
+'tetris written by Michael Pastorino
+Sub tetris()
+Call auto_open
+End Sub
+Function auto_open()
+
+score = 0
+
+
+Columns("P:AZ").Select
+Selection.ClearContents
+
+Columns("A:J").ClearContents
+
+ReDim ytaken(0 To 0)
+ReDim xtaken(0 To 0)
+
+shape_counter = 0
+
+gwidth = 10
+top_row = 6
+bottom_line = 16
+b_full = False
+hit = False
+
+Dim ws_name As String
+ws_name = ActiveSheet.Name
+
+Dim pro_index As Integer
+Dim pro_index_last As Integer
+Dim pro_counter As Integer
+Dim b As Integer
+Dim c As Integer
+Dim d As Integer
+Dim e As Integer
+Dim z As Integer
+Dim this_x As Long
+Dim yz_x As Long
+Dim interval
+
+Dim u_ytaken() As Integer
+Dim u_xtaken() As Integer
+Dim offset_arr() As Integer
+Dim uni As Boolean
+
+shape(0) = "line"
+shape(1) = "L"
+'l starts in position 1
+shape(2) = "reverse L"
+shape(3) = "Z"
+shape(4) = "reverse Z"
+shape(5) = "square"
+shape(6) = "T"
+'t starts in position 3 ->4, 1, 2, 3, etc
+
+row1(0) = 14
+row1(1) = 13
+row1(2) = 13
+row1(3) = 12
+row1(4) = 23
+row1(5) = 12
+row1(6) = 13
+
+row2(0) = ""
+row2(1) = 1
+row2(2) = 3
+row2(3) = 23
+row2(4) = 12
+row2(5) = 12
+row2(6) = 2
+
+
+x = 0
+Do Until x = gwidth
+ReDim Preserve xztaken(0 To x)
+xztaken(x) = x + 1
+
+ReDim Preserve yztaken(0 To x)
+yztaken(x) = top_row + bottom_line + 1
+x = x + 1
+Loop
+'initially only "taken" cells are bottom line
+
+Sheets(ws_name).Select
+Rows(top_row & ":" & top_row + bottom_line + 100).Select
+
+    With Selection.Interior
+        .Pattern = xlNone
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+
+    Selection.Borders(xlDiagonalDown).LineStyle = xlNone
+    Selection.Borders(xlDiagonalUp).LineStyle = xlNone
+    Selection.Borders(xlEdgeLeft).LineStyle = xlNone
+    Selection.Borders(xlEdgeTop).LineStyle = xlNone
+    Selection.Borders(xlEdgeBottom).LineStyle = xlNone
+    Selection.Borders(xlEdgeRight).LineStyle = xlNone
+    Selection.Borders(xlInsideVertical).LineStyle = xlNone
+    Selection.Borders(xlInsideHorizontal).LineStyle = xlNone
+
+
+Columns("A:J").EntireColumn.ColumnWidth = 2
+    
+    Rows(top_row & ":" & bottom_line).EntireRow.RowHeight = Cells(1, 1).Width
+    Range("A" & top_row & ":J" & bottom_line + top_row).Select
+    
+    Selection.Borders(xlInsideVertical).LineStyle = xlThin
+    Selection.Borders(xlInsideHorizontal).LineStyle = xlThin
+    
+   interval = 0.6
+    Range("K10").Value = 1
+    Range("O11").Value = score
+    
+    
+    Do Until b_full = True '11
+    
+    scoring_time_total = 0
+    scoring_time_count = 0
+    'for calculating average speed during movement of this shape
+    
+    row_tracker = top_row
+    hit = False 'since new shape
+    'shape starts out at row top_row
+    
+    shapes_row = 1
+    'tracks which row of the current shape is being drawn
+    
+    shape_counter = shape_counter + 1
+    
+    start_col = 3
+    'this should be 1 less than the column you want the shape to start
+    'eg start in col A = 0
+    
+    xpos = start_col
+    t_r_offset = 0
+    
+    rnd_num = Application.WorksheetFunction.Floor(Rnd * 7, 1)
+ 
+    If rnd_num = 6 Then
+    pos = 3
+    Else
+    pos = 1
+    End If
+    
+    If row2(rnd_num) <> "" Then
+    shape_height = 2
+    Else
+    shape_height = 1
+    End If
+  
+    draw_cell = 0
+    
+  Range("M" & top_row).Select
+    start1 = Left(row1(rnd_num), 1)
+    end1 = Right(row1(rnd_num), 1)
+    len1 = end1 - start1
+    
+    ReDim xtaken(0 To 0)
+    arr_counter = 0
+    Do Until arr_counter > len1
+    ReDim Preserve xtaken(0 To arr_counter)
+    xtaken(arr_counter) = start_col + start1 + arr_counter
+    arr_counter = arr_counter + 1
+    
+    Loop 'arr_counter = row_dsit
+    
+
+
+    ReDim ytaken(0 To 0)
+    arr_counter = 0
+    Do Until arr_counter > len1
+    ReDim Preserve ytaken(0 To arr_counter)
+    ytaken(arr_counter) = row_tracker - shape_height
+    arr_counter = arr_counter + 1
+    Loop 'arr_counter = row_dsit
+    
+    hl_start = start1
+    hl_end = end1
+
+    If row2(rnd_num) <> "" Then
+    start2 = Left(row2(rnd_num), 1)
+    
+    If Len(row2(rnd_num)) > 1 Then
+    end2 = Right(row2(rnd_num), 1)
+    Else
+    end2 = start2
+    End If
+          
+    arr_counter = 0
+    len2 = end2 - start2
+    existing_arr_len = UBound(xtaken) + 1
+    Do Until arr_counter > len2
+    ReDim Preserve xtaken(0 To existing_arr_len)
+    xtaken(existing_arr_len) = start_col + start2 + arr_counter
+    arr_counter = arr_counter + 1
+    existing_arr_len = existing_arr_len + 1
+    Loop
+
+    arr_counter = 0
+    existing_arr_len = UBound(ytaken) + 1
+    Do Until arr_counter > len2
+    ReDim Preserve ytaken(0 To existing_arr_len)
+    ytaken(existing_arr_len) = row_tracker - shape_height + 1
+    arr_counter = arr_counter + 1
+    existing_arr_len = existing_arr_len + 1
+    Loop
+    
+    If start1 > start2 Then
+    hl_start = start2
+    End If
+    
+    If end2 > end1 Then
+    hl_end = end2
+    End If
+    
+    End If 'row2 <> ""
+
+    shape_width = hl_end - hl_start + 1
+    'for comparison with horizontal boundaries of game board
+    
+    Dim start_time
+    
+    hit = False
+    b_full = False
+    
+    timer_counter = 1
+    
+    Do Until hit = True '10
+    'one shape loop
+    
+    If Range("Q10").Value = 1 Then
+    Exit Function 'change to pause
+    End If
+    'for testing
+   
+    start_time = Timer
+    Range("L10").Value = 10
+    'L25 is r_offset spinner
+    'note this needs to manually be made sure
+    'to match the cell linked to the spinner
+    
+    Range("M10").Value = 1
+    rotating = False
+    'rotation spinner
+    'if this value doesn't = 1 then player
+    'wants to rotate shape
+    'call rot function
+    
+      
+    Do While Timer < start_time + interval
+    DoEvents 'pause
+    Loop
+    
+    Do Until ActiveSheet.Name = ws_name
+    'pause if sheet isn't game sheet
+    DoEvents
+    Loop
+    
+    erase_shape
+    
+    r_offset = Range("L10").Value - 10
+    speed = Range("K10").Value
+    
+    scoring_time_total = scoring_time_total + speed
+    scoring_time_count = scoring_time_count + 1
+    
+    If speed = 3 Then
+    interval = 0.2
+    ElseIf speed = 2 Then
+    interval = 0.4
+    Else
+    interval = 0.6
+    End If
+    
+    
+    If r_offset <> 0 Then
+    
+    'update xtaken
+    'r_offset is player moving current shape left or right
+    'update x coords of current shape's taken cells
+    
+    'check that moving the r_offset amount will not
+    'move shape out of game board horizontally
+    
+    'and will not cause overlap with another shape
+    'compare w/ xztaken and yztaken
+    
+    n_xpos = xpos + r_offset
+    'n_xpos is proposed new x position of shape
+    'should be x coord of square furthest left
+        
+    If n_xpos < 0 Then
+    r_offset = 0 - xpos
+    Else
+    If n_xpos + shape_width > gwidth - 1 Then
+    r_offset = (gwidth) - (xpos + shape_width)
+    End If
+    End If 'horiz boundaries test
+    
+    'test if current shape will overlap with
+    'OR PASS THRU
+    'existing shape if r_offset applied
+    
+    'new2
+    arr_counter = 0
+    te = False
+    'if te=true, then current shape shares y vals with existing shapes
+    
+    ReDim offset_arr(0 To 0)
+    offset_arr(0) = r_offset
+    'applying r_offset to each val in x and ytaken arrs
+    
+    Do Until arr_counter > UBound(ytaken) Or te = True '1
+    
+    z = 0
+    Do Until te = True Or z > UBound(yztaken) '2
+    If yztaken(z) = ytaken(arr_counter) + 1 Then
+    te = True
+    End If
+    z = z + 1
+    Loop '2
+    
+    arr_counter = arr_counter + 1
+    Loop '1
+    
+    If te = True Then '3, there is a possibility for overlap w/ r_offset
+    'find unique vals in ytaken
+    z = 1
+    b = 0
+    ReDim u_ytaken(0 To 0)
+    'u_ytaken will contain unique vals in ytaken
+    u_ytaken(0) = ytaken(0)
+    Do Until z > UBound(ytaken) '6
+    uni = False
+    For Each yval In u_ytaken
+    If yval = ytaken(z) Then
+    uni = True
+    End If
+    Next yval
+    
+    If uni = False Then '5
+    b = b + 1
+    ReDim Preserve u_ytaken(0 To b)
+    u_ytaken(b) = ytaken(z)
+    End If '5
+    
+    z = z + 1
+    Loop '6
+    
+    If r_offset > 0 Then '4
+    'player wants to move shape to the right
+    'for each unique in ytaken, find max x in xtaken, moving to right
+    'this will give the square of the current shape
+    'that will first hit another shape moving rightwards at that yval
+    For Each yv In u_ytaken
+    
+    z = 0
+    this_x = 0
+    Do Until z > UBound(xtaken)
+    If ytaken(z) = yv Then
+    If xtaken(z) > this_x Then
+    this_x = xtaken(z)
+    End If
+    End If
+    z = z + 1
+    Loop
+    
+    'now for this unique yval in ytaken, we have the max x val
+    'we have the square with this yval that would hit first if moving rightwards
+    
+    'find min x greater than this_x with yval in z arrs
+    'this will be the first obstacle moving rightwards
+    'at this yval
+    yz_x = 1000000
+    z = 0
+    'Range("Q29").Select just commented this
+    
+    Do Until z > UBound(yztaken) '7
+    If yztaken(z) = yv + 1 Then
+    'comparing current yval in ytaken to 1 plus this number in yztaken
+    'as shape will also be moving downwards
+    If xztaken(z) > this_x And xztaken(z) < yz_x Then
+    yz_x = xztaken(z)
+    End If
+    End If
+    z = z + 1
+    Loop '7
+    
+    If yz_x < 1000000 Then 'found a shape with this yval + 1 on board to the right
+    'of the current shape
+    If r_offset > yz_x - this_x - 1 Then
+    r_offset = yz_x - this_x - 1
+    
+    ReDim Preserve offset_arr(0 To UBound(offset_arr) + 1)
+    offset_arr(UBound(offset_arr)) = r_offset
+    
+    End If
+    End If 'found match
+    
+    Next yv
+    
+    If UBound(offset_arr) > 0 Then
+    'then r_offset had to be altered based on
+    'original r_offset would have cause collision with another shape
+    'find the lowest r_offset allowed for the various yvals
+    'which will be the min value in this array
+    r_offset = 1000000
+    For Each ro In offset_arr
+    If ro < r_offset Then
+    r_offset = ro
+    End If
+    Next ro
+    End If
+    
+    Else 'r_offset < 0
+    'player wants to move shape leftwards
+    
+    'for each unique in ytaken, find min x, moving to left
+    'min x is currently furthest left square in the shape
+    'at that yval
+    For Each yv In u_ytaken
+    
+    z = 0
+    this_x = 10
+    Do Until z > UBound(xtaken)
+    If ytaken(z) = yv + 1 Then
+    'yv+1 since moving shape 1 row downwards as well
+    If xtaken(z) < this_x Then
+    this_x = xtaken(z)
+    End If
+    End If
+    z = z + 1
+    Loop
+    
+    'now for this unique yval in ytaken, we have the min x val
+    'we have the square with this yval that would hit first if moving leftwards
+    
+    'find max x less than this_x with yval + 1 in z arrs
+    'this will be the first obstacle moving leftwards
+    'at this yval
+    yz_x = -1
+    z = 0
+    'Range("Q29").Select just commented this
+    Do Until z > UBound(yztaken) '7
+    If yztaken(z) = yv + 1 Then
+    If xztaken(z) < this_x And xztaken(z) > yz_x Then
+    yz_x = xztaken(z)
+    End If
+    End If
+    z = z + 1
+    Loop '7
+    
+    If yz_x > -1 Then 'found match
+    If r_offset < yz_x - this_x + 1 Then
+    r_offset = yz_x - this_x + 1
+    
+    ReDim Preserve offset_arr(0 To UBound(offset_arr) + 1)
+    offset_arr(UBound(offset_arr)) = r_offset
+    
+    End If
+    End If 'found match
+    
+    Next yv
+    
+    If UBound(offset_arr) > 0 Then 'find min r_offset allowed
+    r_offset = 1000000
+    For Each ro In offset_arr
+    If Abs(ro) < Abs(r_offset) Then
+    r_offset = ro
+    End If
+    Next ro
+    End If
+    
+    End If '4
+    
+    End If '3
+    'new2 end
+    
+   
+    
+    ''end new
+    
+    
+    'update xtaken w r_offset
+    arr_counter = 0
+    Do Until arr_counter > UBound(xtaken)
+    xtaken(arr_counter) = xtaken(arr_counter) + r_offset
+    arr_counter = arr_counter + 1
+    Loop
+    
+    ElseIf Range("M10").Value <> 1 Then 'note only check rotation and speed changes if r_offset = 0
+    'player wants to rotate the current shape
+    rotating = True
+    allow_rotate = True
+    'calling rot function later
+    End If 'r_offset <> 0
+    
+    
+    'update YTAKEN array
+    'this is okay even with rotation
+    'since shape will move down 1 cell as is
+    'and then rotate
+    'new
+    hit_test
+    'neww
+    
+    If hit = False Then
+    
+    arr_counter = 0
+   Do Until arr_counter > UBound(ytaken)
+   ytaken(arr_counter) = ytaken(arr_counter) + 1
+   arr_counter = arr_counter + 1
+   Loop
+    
+    redraw_shape
+
+    
+    If rotating = True Then
+
+     rot 'call rotation function
+    
+     'first move shape down one as is, then rotate in place
+    End If 'rotating
+        
+    timer_counter = timer_counter + 1
+    row_tracker = row_tracker + 1
+    t_r_offset = t_r_offset + r_offset
+    xpos = xpos + r_offset
+    
+    hit_test
+    
+    Else
+    redraw_shape
+    
+    End If 'hit = false
+
+    Loop '10 hit = true do loop
+    
+    'if hit = true then update xztaken and yztaken
+    'board_full
+    
+    update_z_arrs
+    
+    'test if row complete
+    scoring
+    
+    Loop '11
+    
+    If b_full = True Then 'which it should, at this point
+    Call game_over
+    End If
+        
+TheEnd:
+End Function
+Function game_over()
+'end game and write game over
+Range("A" & top_row).Select
+Selection.Value = "G"
+Selection.Offset(0, 1).Value = "A"
+Selection.Offset(0, 2).Value = "M"
+Selection.Offset(0, 3).Value = "E"
+
+Selection.Offset(0, 6).Value = "O"
+Selection.Offset(0, 7).Value = "V"
+Selection.Offset(0, 8).Value = "E"
+Selection.Offset(0, 9).Value = "R"
+
+Range("A" & top_row & ":J" & top_row).Interior.Pattern = xlSolid
+Range("A" & top_row & ":J" & top_row).Interior.PatternColorIndex = xlAutomatic
+Range("A" & top_row & ":J" & top_row).Interior.Color = 65535
+Range("A" & top_row & ":J" & top_row).Interior.TintAndShade = 0
+Range("A" & top_row & ":J" & top_row).Interior.PatternTintAndShade = 0
+
+Range("A" & top_row & ":J" & top_row).Select
+With Selection
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+    End With
+    
+    With Selection.Font
+        .Name = "Tahoma"
+        .Size = 10
+        .Strikethrough = False
+        .Superscript = False
+        .Subscript = False
+        .OutlineFont = False
+        .Shadow = False
+        .Underline = xlUnderlineStyleNone
+        .ThemeColor = xlThemeColorLight1
+        .TintAndShade = 0
+        .ThemeFont = xlThemeFontNone
+    End With
+
+Range("N" & top_row).Select
+End Function
+Function scoring()
+'after hit_test returns true, then update scoring
+'by checking if just stopped shape caused any row to be completed
+Dim y As Integer
+Dim max_y As Long
+Dim p_max_y As Long
+Dim u_arr() As Integer
+Dim arr_done As Boolean
+Dim u_arr_count As Integer
+Dim in_arr As Boolean
+Dim z As Integer
+Dim v As Integer
+Dim w As Integer
+Dim q As Integer
+Dim avg_speed As Double
+
+Dim remove_count As Integer
+
+Dim found_match As Boolean
+
+y = bottom_line
+'y is for looping through rows, starting at bottom
+'bottom line = distance from top row to bottom of board
+'NOT y val of bottom of board
+Do Until y < 0 '1
+'z is for matching xvals that need to be in xztaken for a given
+'this val (row) in yztaken for row to be complete
+'need 1 through 10, representing all x vals across the board, to be
+'in xztaken
+found_match = True
+z = 1
+Do Until z > 10 Or found_match = False '7
+'do until matched all xvals or could not match at any point (found_match)
+found_match = False 'havent yet found this xval
+v = 0
+Do Until v > UBound(xztaken) Or found_match = True '6
+If yztaken(v) = y + top_row And xztaken(v) = z Then
+found_match = True
+End If 'found match
+v = v + 1
+Loop '6
+z = z + 1
+Loop '7
+
+
+If found_match = True Then '55
+'if found_match = true, then found matches for all zvals (xvals)
+'in this row -> row is complete
+'add points to score and move all rows above this row down one
+avg_speed = scoring_time_total / scoring_time_count
+
+score = score + (avg_speed * 10)
+Range("O11").Value = score
+
+'erase this row's vals from z taken arrs
+w = 0
+remove_count = 0
+Do Until w + remove_count > UBound(xztaken) '1a
+If yztaken(w + remove_count) = y + top_row Then '2
+'remove this element from the z arrs
+remove_count = remove_count + 1
+
+If remove_count < 10 Then '88
+'if remove count = 10 then don't look for more
+'vals with this yval in z arrs
+'as this is the last item to remove in this row
+'running do loop will produce error if the
+'last val to remove is the last val in the yztaken
+'as incrementing remove count in previous line
+'and looking for the next val in yztaken will be outside
+'the ubound of yztaken
+'this took a while to figure out
+Do Until yztaken(w + remove_count) <> y + top_row '9
+'do loop is for cases when 2+ consecutive vals in
+'yztaken = y + top_row, which should be often
+'as many squares in one shape will have ended at same
+'yval at be added to z arrs at the same time
+remove_count = remove_count + 1
+If remove_count = 10 Then '1
+Exit Do
+End If '1
+Loop '9
+End If '88
+
+
+End If '2
+
+If w + remove_count <= UBound(xztaken) Then
+xztaken(w) = xztaken(w + remove_count)
+yztaken(w) = yztaken(w + remove_count)
+w = w + 1
+Else
+Exit Do
+End If
+
+Loop '1a
+
+ReDim Preserve yztaken(0 To UBound(yztaken) - remove_count)
+ReDim Preserve xztaken(0 To UBound(xztaken) - remove_count)
+
+
+'erase (clear bckground color) this complete row
+ Range("A" & y + top_row & ":J" & y + top_row).Select
+    With Selection.Interior
+        .Pattern = xlNone
+        .TintAndShade = 0
+        .PatternTintAndShade = 0
+    End With
+
+ReDim u_arr(0 To 0)
+u_arr_count = 0
+arr_done = False
+'are all elements in yztaken in u_arr
+
+p_max_y = 1000000
+max_y = 1000000
+
+Do Until max_y = -1 '10
+
+max_y = -1
+q = 0
+Do Until q > UBound(yztaken) '5
+If yztaken(q) > max_y And yztaken(q) < p_max_y Then
+max_y = yztaken(q)
+End If
+q = q + 1
+Loop '5
+p_max_y = max_y
+
+If max_y <> -1 Then '-1
+If u_arr_count = 0 Then
+u_arr(0) = max_y
+u_arr_count = 1
+Else
+ReDim Preserve u_arr(0 To u_arr_count)
+u_arr(UBound(u_arr)) = max_y
+u_arr_count = u_arr_count + 1
+End If
+End If '-1
+
+Loop '10
+
+
+'must be done from bottom of board upwards
+q = 0
+Do Until q > UBound(u_arr) '2
+'loop through unique yvals
+w = 0
+Do Until w > UBound(yztaken) '8
+If yztaken(w) < y + top_row And yztaken(w) = u_arr(q) Then '3
+'this row is above the row that was just erased due to being complete
+'and needs to move down 1
+'need to test y + top_row since dont want to delete the
+'bottom of the board, which is yztaken vals equal to
+'y + top_row + 1
+'bottommost rows must be moved down first
+
+Cells(yztaken(w), xztaken(w)).Interior.Pattern = xlNone
+
+yztaken(w) = yztaken(w) + 1
+
+
+Cells(yztaken(w), xztaken(w)).Interior.Pattern = xlSolid
+Cells(yztaken(w), xztaken(w)).Interior.PatternColorIndex = xlAutomatic
+Cells(yztaken(w), xztaken(w)).Interior.ThemeColor = xlThemeColorAccent2
+Cells(yztaken(w), xztaken(w)).Interior.TintAndShade = 0.399975585192419
+Cells(yztaken(w), xztaken(w)).Interior.PatternTintAndShade = 0
+
+End If '3
+w = w + 1
+Loop '8
+
+q = q + 1
+Loop '2
+
+End If 'found_match = true
+
+If found_match = False Then 'new
+y = y - 1
+End If 'new
+
+Loop '1
+
+End Function
+Function hit_test()
+'not used for testing r_offset (r/l movement) caused collisions
+Dim i As Integer
+Dim z As Integer
+
+i = 0
+Do Until i > UBound(xtaken) Or hit = True
+z = 0
+'note - no simple array sort in vba for excel
+Do Until z > UBound(xztaken) Or hit = True
+If xztaken(z) = xtaken(i) Then 'these cells have the same x values
+If yztaken(z) = ytaken(i) + 1 Then 'this is a hit
+hit = True
+For Each y_val In ytaken
+If y_val < top_row Then
+b_full = True
+End If
+Next y_val
+End If 'yztaken z = ytaken + 1
+End If 'xztaken = xtaken
+z = z + 1
+Loop 'incrementing z
+i = i + 1
+Loop 'incrementing i
+
+End Function
+
+Function board_full()
+'test if game board is full, causing game to come to end
+Dim i As Integer
+i = 0
+Dim z As Integer
+
+Do Until i > UBound(xtaken) Or b_full = True
+z = 0
+
+Dim looper As Integer
+looper = 0
+
+
+Do Until z > UBound(xztaken) Or b_full = True
+If xztaken(z) = xtaken(i) Then 'these cells have the same x values
+
+If yztaken(z) = ytaken(i) Then 'this is a full board
+
+b_full = True
+End If 'yztaken z = ytaken
+End If 'xztaken = xtaken
+z = z + 1
+Loop 'incrementing z
+i = i + 1
+Loop 'incrementing i
+
+End Function
+
+Function update_z_arrs()
+'hit just made
+'update xztaken and yztaken with xycoords of where latest shape stopped
+'add all vals in xtaken to xztaken and ytaken to yztaken
+Dim i As Integer
+i = 0
+Dim arr_len As Integer
+arr_len = UBound(xztaken)
+
+Do Until i > UBound(xtaken)
+
+ReDim Preserve xztaken(0 To (arr_len + i + 1))
+xztaken(arr_len + i + 1) = xtaken(i)
+ReDim Preserve yztaken(0 To (arr_len + i + 1))
+yztaken(arr_len + i + 1) = ytaken(i)
+
+i = i + 1
+Loop
+
+End Function
+Function rot_r_Z()
+Dim x As Integer
+Dim y As Integer
+Dim z As Integer
+
+If pos = 1 Then
+x = 1
+arr_tracker = xtaken(0)
+Do Until x > UBound(xtaken)
+If xtaken(x) < arr_tracker Then
+arr_tracker = xtaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+pro_y(0) = ytaken(key_to_move)
+pro_x(0) = xtaken(key_to_move) + 1
+
+pro_y(1) = ytaken(key_to_move) - 1
+pro_x(1) = xtaken(key_to_move) + 1
+
+pro_y(2) = ytaken(key_to_move) - 1
+pro_x(2) = xtaken(key_to_move)
+
+pro_y(3) = ytaken(key_to_move) - 2
+pro_x(3) = xtaken(key_to_move)
+
+Else
+'pos=2
+
+x = 1
+arr_tracker = ytaken(0)
+Do Until x > UBound(ytaken)
+If ytaken(x) > arr_tracker Then
+arr_tracker = ytaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+pro_y(0) = ytaken(key_to_move)
+pro_x(0) = xtaken(key_to_move) - 1
+
+pro_y(1) = ytaken(key_to_move)
+pro_x(1) = xtaken(key_to_move)
+
+pro_y(2) = ytaken(key_to_move) - 1
+pro_x(2) = xtaken(key_to_move)
+
+pro_y(3) = ytaken(key_to_move) - 1
+pro_x(3) = xtaken(key_to_move) + 1
+
+End If 'pos
+
+rot_okay
+
+
+If allow_rotate = True Then
+
+If pos = 1 Then
+pos = 2
+Else
+pos = 1
+End If 'pos
+
+draw_pro_arrs
+
+toggle_hw
+'set shape_width = shape_height, and vice versa
+
+End If 'allow_rotate = true
+
+End Function
+Function rot()
+'which shape is current shape?
+'each shape has specific rotation function
+'choose the correct function
+key_to_move = 0
+arr_tracker = 0
+
+If shape(rnd_num) = "T" Then
+rot_T
+ElseIf shape(rnd_num) = "L" Then
+rot_L
+ElseIf shape(rnd_num) = "Z" Then
+rot_Z
+ElseIf shape(rnd_num) = "line" Then
+rot_line
+ElseIf shape(rnd_num) = "reverse Z" Then
+rot_r_Z
+ElseIf shape(rnd_num) = "reverse L" Then
+rot_r_L
+End If
+
+End Function
+Function rot_line()
+Dim x As Integer
+Dim y As Integer
+Dim z As Integer
+
+If pos = 1 Then 'pos
+arr_tracker = xtaken(0)
+x = 1
+Do Until x > UBound(xtaken)
+If xtaken(x) > arr_tracker Then
+arr_tracker = xtaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x > UBound(pro_y)
+pro_y(x) = ytaken(key_to_move) - (x)
+pro_x(x) = xtaken(key_to_move) - 1
+x = x + 1
+Loop
+
+ElseIf pos = 2 Then
+
+arr_tracker = ytaken(0)
+x = 1
+Do Until x > UBound(ytaken)
+If ytaken(x) > arr_tracker Then
+arr_tracker = ytaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x > UBound(pro_y)
+pro_y(x) = ytaken(key_to_move)
+pro_x(x) = xtaken(key_to_move) + 1 - x
+x = x + 1
+Loop
+
+End If 'pos
+
+rot_okay
+
+If allow_rotate = True Then
+If pos = 1 Then
+pos = 2
+xpos = xpos + 2
+ElseIf pos = 2 Then
+pos = 1
+xpos = xpos - 2
+End If
+
+draw_pro_arrs
+
+toggle_hw
+'set shape_width = shape_height, and vice versa
+
+End If
+
+End Function
+Function rot_r_L()
+'function rotate reverse L
+Dim x As Integer
+Dim y As Integer
+Dim z As Integer
+
+If pos = 1 Then
+
+x = 1
+arr_tracker = xtaken(0)
+Do Until x > UBound(xtaken)
+If xtaken(x) < arr_tracker Then
+arr_tracker = xtaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_x(x) = xtaken(key_to_move)
+pro_y(x) = ytaken(key_to_move) + x - 1
+x = x + 1
+Loop
+
+pro_y(3) = ytaken(key_to_move) - 1
+pro_x(3) = xtaken(key_to_move) + 1
+
+ElseIf pos = 2 Then
+
+x = 0
+
+arr_tracker = ytaken(0)
+Do Until x > UBound(ytaken)
+If ytaken(x) > arr_tracker Then
+arr_tracker = ytaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_y(x) = ytaken(key_to_move) + 1
+pro_x(x) = xtaken(key_to_move) + x
+x = x + 1
+Loop
+
+pro_y(3) = ytaken(key_to_move)
+pro_x(3) = xtaken(key_to_move)
+
+ElseIf pos = 3 Then
+
+x = 0
+
+arr_tracker = xtaken(0)
+Do Until x > UBound(xtaken)
+If xtaken(x) > arr_tracker Then
+arr_tracker = xtaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_x(x) = xtaken(key_to_move) - 1
+pro_y(x) = ytaken(key_to_move) + x - 2
+x = x + 1
+Loop
+
+pro_x(3) = xtaken(key_to_move) - 2
+pro_y(3) = ytaken(key_to_move)
+
+
+Else '
+x = 0
+
+arr_tracker = ytaken(0)
+
+Do Until x > UBound(ytaken)
+If ytaken(x) < arr_tracker Then
+arr_tracker = ytaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_y(x) = ytaken(key_to_move) + 1
+pro_x(x) = xtaken(key_to_move) + x - 1
+x = x + 1
+Loop
+
+pro_y(3) = ytaken(key_to_move) + 2
+pro_x(3) = xtaken(key_to_move) + 1
+
+End If 'pos
+
+rot_okay
+
+
+If allow_rotate = True Then '2
+
+If pos = 1 Then
+pos = 2
+ElseIf pos = 2 Then
+pos = 3
+ElseIf pos = 3 Then
+pos = 4
+Else
+pos = 1
+End If
+
+draw_pro_arrs
+
+toggle_hw
+'set shape_width = shape_height, and vice versa
+
+End If '2
+End Function
+Function rot_L()
+'function for rotating an L shape
+'finds one square that is not in the row of three
+
+Dim x As Integer
+Dim y As Integer
+Dim z As Integer
+
+If pos = 1 Or pos = 3 Then
+using_arr = ytaken
+other_arr = xtaken
+Else
+using_arr = xtaken
+other_arr = ytaken
+End If 'pos
+
+If pos = 1 Then
+
+x = 0
+
+arr_tracker = 0
+Do Until x > UBound(using_arr)
+If using_arr(x) > arr_tracker Then
+arr_tracker = using_arr(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_x(x) = xtaken(key_to_move)
+pro_y(x) = ytaken(key_to_move) - x
+x = x + 1
+Loop
+
+pro_x(3) = xtaken(key_to_move) + 1
+pro_y(3) = ytaken(key_to_move)
+
+ElseIf pos = 2 Then
+
+x = 0
+
+arr_tracker = 0
+Do Until x > UBound(using_arr)
+If using_arr(x) > arr_tracker Then
+arr_tracker = using_arr(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_y(x) = ytaken(key_to_move)
+pro_x(x) = xtaken(key_to_move) - x
+x = x + 1
+Loop
+
+pro_y(3) = ytaken(key_to_move) - 1
+pro_x(3) = xtaken(key_to_move)
+
+ElseIf pos = 3 Then
+
+x = 0
+
+arr_tracker = ytaken(0)
+Do Until x > UBound(ytaken)
+If ytaken(x) < arr_tracker Then
+arr_tracker = ytaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_x(x) = xtaken(key_to_move)
+pro_y(x) = ytaken(key_to_move) + x - 1
+x = x + 1
+Loop
+
+pro_x(3) = xtaken(key_to_move) - 1
+pro_y(3) = ytaken(key_to_move) - 1
+
+Else '
+x = 0
+
+arr_tracker = xtaken(0)
+
+Do Until x > UBound(xtaken)
+If xtaken(x) < arr_tracker Then
+arr_tracker = xtaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+x = 0
+Do Until x = UBound(pro_y)
+pro_y(x) = ytaken(key_to_move) + 1
+pro_x(x) = xtaken(key_to_move) + x
+x = x + 1
+Loop
+
+pro_y(3) = ytaken(key_to_move) + 2
+pro_x(3) = xtaken(key_to_move)
+
+End If 'pos
+
+rot_okay
+
+If allow_rotate = True Then '2
+
+If pos = 1 Then
+pos = 2
+ElseIf pos = 2 Then
+pos = 3
+xpos = xpos - 1
+ElseIf pos = 3 Then
+xpos = xpos + 1
+pos = 4
+Else
+pos = 1
+End If
+
+draw_pro_arrs
+
+toggle_hw
+
+End If '2
+
+End Function
+Function rot_Z()
+Dim x As Integer
+Dim y As Integer
+
+If pos = 1 Then '8
+'in this pos, key_to_move = index of min x val in xtaken
+x = 1
+arr_tracker = xtaken(0)
+Do Until x > UBound(xtaken)
+If xtaken(x) < arr_tracker Then
+arr_tracker = xtaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+pro_y(0) = ytaken(key_to_move) + 1
+pro_x(0) = xtaken(key_to_move)
+
+pro_y(1) = ytaken(key_to_move)
+pro_x(1) = xtaken(key_to_move)
+
+pro_y(2) = ytaken(key_to_move)
+pro_x(2) = xtaken(key_to_move) + 1
+
+pro_y(3) = ytaken(key_to_move) - 1
+pro_x(3) = xtaken(key_to_move) + 1
+
+Else
+'pos=2
+
+arr_tracker = ytaken(0)
+x = 1
+Do Until x > UBound(ytaken)
+If ytaken(x) > arr_tracker Then
+arr_tracker = ytaken(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+pro_y(0) = ytaken(key_to_move) - 1
+pro_x(0) = xtaken(key_to_move)
+
+pro_y(1) = ytaken(key_to_move) - 1
+pro_x(1) = xtaken(key_to_move) + 1
+
+pro_y(2) = ytaken(key_to_move)
+pro_x(2) = xtaken(key_to_move) + 1
+
+pro_y(3) = ytaken(key_to_move)
+pro_x(3) = xtaken(key_to_move) + 2
+
+End If '8, pos
+
+rot_okay 'test if rotation is allowable
+
+If allow_rotate = True Then '2
+
+If pos = 1 Then
+pos = 2
+Else
+pos = 1
+End If
+
+draw_pro_arrs 'draw rotation changes
+
+toggle_hw
+'set shape_width = shape_height, and vice versa
+
+End If '2
+
+End Function
+
+Function rot_T()
+'rotate T
+
+
+Dim x As Integer
+Dim y As Integer
+y = 0
+Dim v As Integer
+
+'value 1 through 4 representing 4 possible orientations of the T
+
+Dim x_move As Integer
+Dim y_move As Integer
+
+If pos = 2 Or pos = 4 Then
+using_arr = xtaken
+other_arr = ytaken
+Else
+using_arr = ytaken
+other_arr = xtaken
+End If 'vertical
+
+'which orientation is T in?
+
+If pos = 4 Then
+
+x_move = -1
+y_move = -1
+'just changed y_move from 1
+
+arr_tracker = 0
+x = 0
+Do Until x > UBound(other_arr)
+If other_arr(x) > arr_tracker Then
+arr_tracker = other_arr(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+ElseIf pos = 2 Then
+
+x_move = 1
+y_move = 1
+'just changed y_move from -1
+
+arr_tracker = other_arr(0)
+x = 0
+
+Do Until x > UBound(other_arr)
+If other_arr(x) < arr_tracker Then
+arr_tracker = other_arr(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+
+
+ElseIf pos = 3 Then
+
+x_move = 1
+y_move = -1
+arr_tracker = other_arr(0)
+x = 0
+Do Until x > UBound(other_arr)
+If other_arr(x) < arr_tracker Then
+arr_tracker = other_arr(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+
+Else
+x_move = -1
+y_move = 1
+
+arr_tracker = 0
+x = 0
+Do Until x > UBound(other_arr)
+If other_arr(x) > arr_tracker Then
+arr_tracker = other_arr(x)
+key_to_move = x
+End If
+x = x + 1
+Loop
+End If
+
+v = 0
+Do Until v > UBound(yztaken)
+If ytaken(key_to_move) + ymove = yztaken(v) And xtaken(key_to_move) + xmove = xztaken(v) Then
+allow_rotate = False
+Exit Do
+End If
+v = v + 1
+Loop
+
+If allow_rotate = True Then
+'test if this rotation will cause collision or push shape
+'out of game board
+If ytaken(key_to_move) + y_move > top_row + bottom_line Or ytaken(key_to_move) + y_move < top_row Or xtaken(key_to_move) + x_move > gwidth Or xtaken(key_to_move) < 1 Then
+allow_rotate = False
+End If
+End If
+
+
+If allow_rotate = True Then
+If pos = 3 Then
+xpos = xpos + 1
+pos = 4
+ElseIf pos = 2 Then
+pos = 3
+ElseIf pos = 4 Then
+xpos = xpos - 1
+pos = 1
+Else 'pos = 1
+pos = 2
+End If 'pos
+'erase this cell from current location
+Cells(ytaken(key_to_move), xtaken(key_to_move)).Interior.Pattern = xlNone
+
+'key_to_move is the key location in the xtaken and ytaken
+'arrays of the cell in the T that should be moved
+'for it to appear like a rotation
+
+xtaken(key_to_move) = xtaken(key_to_move) + x_move
+ytaken(key_to_move) = ytaken(key_to_move) + y_move
+
+'now redraw this cell in new location
+Cells(ytaken(key_to_move), xtaken(key_to_move)).Interior.Pattern = xlSolid
+Cells(ytaken(key_to_move), xtaken(key_to_move)).Interior.PatternColorIndex = xlAutomatic
+Cells(ytaken(key_to_move), xtaken(key_to_move)).Interior.ThemeColor = xlThemeColorAccent2
+Cells(ytaken(key_to_move), xtaken(key_to_move)).Interior.TintAndShade = 0.399975585192419
+Cells(ytaken(key_to_move), xtaken(key_to_move)).Interior.PatternTintAndShade = 0
+
+toggle_hw
+'set shape_width = shape_height, and vice versa
+
+End If 'allow rotate = true
+
+End Function
+
+Function erase_shape()
+Dim x As Integer
+x = 0
+
+Do Until x > UBound(xtaken)
+
+Cells(ytaken(x), xtaken(x)).Interior.Pattern = xlNone
+x = x + 1
+Loop
+End Function
+
+Function redraw_shape()
+'loop through taken arrays and draw each cell individually
+Dim x As Integer
+x = 0
+Do Until x > UBound(xtaken)
+If ytaken(x) >= top_row Then
+     Cells(ytaken(x), xtaken(x)).Interior.ThemeColor = xlThemeColorAccent2
+     Cells(ytaken(x), xtaken(x)).Interior.PatternColorIndex = xlAutomatic
+    Cells(ytaken(x), xtaken(x)).Interior.ThemeColor = xlThemeColorAccent2
+    Cells(ytaken(x), xtaken(x)).Interior.TintAndShade = 0.399975585192419
+    Cells(ytaken(x), xtaken(x)).Interior.PatternTintAndShade = 0
+End If
+    
+x = x + 1
+Loop
+End Function
+
+Function find_mode()
+Dim x As Integer
+Dim v As Integer
+Dim y As Integer
+
+x = 0
+Do Until x > UBound(vals)
+vals(x) = -1000
+x = x + 1
+Loop
+
+x = 0
+Do Until x > UBound(using_arr)
+in_vals = False
+v = 0
+Do Until v > UBound(vals)
+If using_arr(x) = vals(v) Then
+in_vals = True
+Exit Do
+End If
+v = v + 1
+Loop
+
+If in_vals = False Then
+vals(y) = using_arr(x)
+counts(y) = 1
+y = y + 1
+Else
+counts(v) = counts(v) + 1
+End If 'in_vals already?
+
+x = x + 1
+
+Loop
+
+
+If counts(0) > 1 Then
+arr_mode = vals(0)
+other_val = vals(1)
+Else
+arr_mode = vals(1)
+other_val = vals(0)
+End If
+
+End Function
+
+Function toggle_hw()
+Dim w As Integer
+Dim h As Integer
+
+w = shape_width
+h = shape_height
+
+shape_height = w
+shape_width = h
+
+
+End Function
+Function adjust_rot()
+'if rot_okay sets allow_rotate to false
+'this function will attempt to find a way to rotate
+'the shape
+
+'pro_arr_loc stores arr location in shape arrs (key of these arrs) that caused collision
+'how to know which way to move the rotation to make it work?
+'x coords - count number of xvals in pro_x on either side of the colliding square
+'same for y vals
+'by rules of game, rotation should not be a way to move the shape UPWARDS
+'enabling player to avoid hitting the bottom of the board
+
+
+
+End Function
+Function rot_okay()
+Dim x As Integer
+Dim z As Integer
+
+x = 0
+pro_arr_loc = 0
+
+Do Until pro_arr_loc > UBound(pro_y) '3
+'key_to_move, in L shape rotation, is the one square that DOESNT move
+'test whether rotation is allowable
+z = 0
+Do Until z > UBound(yztaken)
+'Selection.Value = x 'delete this?
+If pro_y(pro_arr_loc) = yztaken(z) And pro_x(pro_arr_loc) = xztaken(z) Then
+allow_rotate = False
+Exit Do
+End If
+z = z + 1
+Loop
+
+If allow_rotate = True Then '1
+'test for horizontal and vertical game board bounds
+If pro_y(pro_arr_loc) > top_row + bottom_line Or pro_y(pro_arr_loc) < top_row Or pro_x(pro_arr_loc) > gwidth Or pro_x(pro_arr_loc) < 1 Then
+allow_rotate = False
+End If
+End If '1
+
+x = x + 1
+pro_arr_loc = pro_arr_loc + 1
+Loop '3
+
+
+End Function
+Function rot_non_exist()
+MsgBox (Sheets("wb").Range("A1").Value)
+End Function
+
+Function draw_pro_arrs()
+Dim x As Integer
+Dim y As Integer
+x = 0
+y = 0
+
+Do Until x > UBound(ytaken)
+Cells(ytaken(x), xtaken(x)).Interior.Pattern = xlNone
+x = x + 1
+Loop
+
+x = 0
+Do Until x > UBound(ytaken)
+
+ytaken(x) = pro_y(y)
+xtaken(x) = pro_x(y)
+
+Cells(ytaken(x), xtaken(x)).Interior.Pattern = xlSolid
+Cells(ytaken(x), xtaken(x)).Interior.PatternColorIndex = xlAutomatic
+Cells(ytaken(x), xtaken(x)).Interior.ThemeColor = xlThemeColorAccent2
+Cells(ytaken(x), xtaken(x)).Interior.TintAndShade = 0.399975585192419
+Cells(ytaken(x), xtaken(x)).Interior.PatternTintAndShade = 0
+y = y + 1
+
+x = x + 1
+Loop
+End Function
